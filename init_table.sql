@@ -1,0 +1,28 @@
+CREATE TABLE users (
+id SERIAL PRIMARY KEY,
+login VARCHAR(255) UNIQUE NOT NULL,
+name VARCHAR(255) NOT NULL
+);
+CREATE TABLE purchases (
+id SERIAL PRIMARY KEY,
+user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+name VARCHAR(255) NOT NULL,
+characteristics TEXT,
+quantity INTEGER NOT NULL,
+amount DECIMAL(10, 2) NOT NULL,
+currency VARCHAR(3) NOT NULL,
+purchase_date DATE NOT NULL
+);
+CREATE TABLE exchange_rates (
+rate_date DATE PRIMARY KEY,
+usd DECIMAL(10, 4) DEFAULT 1.0000,
+rub DECIMAL(10, 4),
+eur DECIMAL(10, 4),
+cny DECIMAL(10, 4),
+kzt DECIMAL(10, 4),
+jpy DECIMAL(10, 4),
+chf DECIMAL(10, 4),
+gbp DECIMAL(10, 4),
+inr DECIMAL(10, 4),
+byn DECIMAL(10, 4)
+);
