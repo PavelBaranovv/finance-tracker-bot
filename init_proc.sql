@@ -62,3 +62,58 @@ BEGIN
   WHERE id = p_id;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION get_rate(p_curr VARCHAR(3), p_date DATE)
+RETURNS DECIMAL(10, 4)
+LANGUAGE sql
+AS $$
+    SELECT CASE LOWER(p_curr)
+        WHEN 'usd' THEN usd
+        WHEN 'rub' THEN rub
+        WHEN 'eur' THEN eur
+        WHEN 'cny' THEN cny
+        WHEN 'kzt' THEN kzt
+        WHEN 'jpy' THEN jpy
+        WHEN 'chf' THEN chf
+        WHEN 'gbp' THEN gbp
+        WHEN 'inr' THEN inr
+        WHEN 'byn' THEN byn
+    END
+    FROM exchange_rates
+    WHERE rate_date = p_date;
+$$;
+
+CREATE OR REPLACE PROCEDURE get_monthly_stats(
+    p_user_id INTEGER,
+    p_year INTEGER,
+    p_month INTEGER,
+    p_target_curr VARCHAR(3),
+    OUT p_result refcursor
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    start_date DATE := make_date(p_year, p_month, 1);
+    end_date DATE := start_date + INTERVAL '1 MONTH' - INTERVAL '1 DAY';
+BEGIN
+    OPEN p_result FOR
+    WITH daily_purchases AS (
+        SELECT
+            extract(day from p.purchase_date)::INTEGER AS day,
+            SUM(
+                (p.amount / get_rate(p.currency, p.purchase_date)) * get_rate(p_target_curr, p.purchase_date)
+            ) AS total
+        FROM purchases p
+        WHERE p.user_id = p_user_id
+        AND p.purchase_date >= start_date
+        AND p.purchase_date <= end_date
+        GROUP BY p.purchase_date
+    )
+    SELECT
+        gs.day,
+        COALESCE(dp.total, 0::DECIMAL(10,2)) AS total_spent
+    FROM generate_series(1, extract(day from end_date)::INTEGER) gs(day)
+    LEFT JOIN daily_purchases dp ON gs.day = dp.day
+    ORDER BY gs.day;
+END;
+$$;
