@@ -25,6 +25,9 @@ public class User {
     @JoinColumn(name = "user_id")
     private List<Purchase> purchases;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Currency currency;
+
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;

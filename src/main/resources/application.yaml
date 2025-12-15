@@ -16,3 +16,8 @@ spring:
   web:
     resources:
       static-locations: classpath:/static/
+
+telegram:
+  bot:
+    token: ${TELEGRAM_BOT_TOKEN}
+    username: ${TELEGRAM_BOT_USERNAME:finance_tracker_bot}
