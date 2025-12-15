@@ -23,7 +23,7 @@ public class Currency {
     @Column(nullable = false, length = 50)
     String name;
 
-    @Column(nullable = false, length = 1)
+    @Column(nullable = false, length = 2)
     String symbol;
 
     @Override
