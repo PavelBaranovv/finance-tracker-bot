@@ -27,6 +27,8 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import static financetracker.constant.CurrencyCode.RUB;
+
 @Service
 @RequiredArgsConstructor
 public class CbrRateService {
@@ -57,7 +59,8 @@ public class CbrRateService {
     }
 
     private String getXml() {
-        try (HttpClient client = HttpClient.newHttpClient()) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(CBR_URL))
                     .GET()
@@ -76,7 +79,7 @@ public class CbrRateService {
 
             List<CurrencyRate> result = new ArrayList<>();
 
-            Currency rub = currencyByCode.get("RUB");
+            Currency rub = currencyByCode.get(RUB);
             if (rub != null) {
                 result.add(CurrencyRate.builder()
                         .currency(rub)
@@ -116,7 +119,7 @@ public class CbrRateService {
 
             return result;
         } catch (Exception e) {
-            throw new RuntimeException("Не удалось распарсить XML ЦБ", e);
+            throw new RuntimeException("Cannot parse CB xml", e);
         }
     }
 

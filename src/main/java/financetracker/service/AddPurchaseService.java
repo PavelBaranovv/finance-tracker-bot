@@ -1,17 +1,19 @@
 package financetracker.service;
 
-import financetracker.bot.AddPurchaseState;
 import financetracker.bot.FinanceTrackerBot;
 import financetracker.constant.Message;
+import financetracker.entity.AddPurchaseState;
 import financetracker.entity.Currency;
 import financetracker.entity.Purchase;
 import financetracker.entity.User;
+import financetracker.repository.AddPurchaseStateRepository;
 import financetracker.repository.CurrencyRepository;
 import financetracker.repository.ExchangeRateRepository;
 import financetracker.repository.PurchaseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
@@ -21,7 +23,11 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+
+import static financetracker.constant.Callback.CURRENCY_PREFIX;
+import static financetracker.enums.AddPurchaseStep.*;
 
 @Service
 @Slf4j
@@ -33,9 +39,9 @@ public class AddPurchaseService {
     private final ExchangeRateRepository exchangeRateRepository;
     private final CbrRateService cbrRateService;
     private final UserService userService;
+    private final AddPurchaseStateRepository addPurchaseStateRepository;
 
-    private final Map<Long, AddPurchaseState> addPurchaseStates = new HashMap<>();
-
+    @Transactional
     public void startAddPurchase(FinanceTrackerBot bot, Update update, String chatId) {
          Long userId = update.getMessage().getFrom().getId();
 
@@ -51,6 +57,11 @@ public class AddPurchaseService {
              return;
          }
 
+        addPurchaseStateRepository.findByUser(user).ifPresent(existingState -> {
+            addPurchaseStateRepository.delete(existingState);
+            addPurchaseStateRepository.flush();
+        });
+
         List<Currency> currencies = currencyRepository.findAll();
         if (currencies.isEmpty()) {
             log.error("No currencies configured in DB, cannot start add purchase flow for userId={}", userId);
@@ -58,10 +69,11 @@ public class AddPurchaseService {
             return;
         }
 
-        AddPurchaseState state = new AddPurchaseState();
-        state.setStep(AddPurchaseState.Step.WAITING_FOR_CURRENCY);
-        state.setUser(user);
-        addPurchaseStates.put(userId, state);
+        AddPurchaseState state = AddPurchaseState.builder()
+                .step(WAITING_FOR_CURRENCY)
+                .user(user)
+                .build();
+        addPurchaseStateRepository.save(state);
 
         InlineKeyboardMarkup markup = buildCurrencyKeyboard(currencies);
         SendMessage msg = new SendMessage(chatId, Message.chooseCurrency);
@@ -71,24 +83,35 @@ public class AddPurchaseService {
 
     public void handleCallback(FinanceTrackerBot bot, CallbackQuery callbackQuery) {
         String data = callbackQuery.getData();
-        Long userId = callbackQuery.getFrom().getId();
+        Long telegramUserId = callbackQuery.getFrom().getId();
         String chatId = callbackQuery.getMessage().getChatId().toString();
 
-        AddPurchaseState state = addPurchaseStates.get(userId);
-        if (state == null || state.getStep() != AddPurchaseState.Step.WAITING_FOR_CURRENCY) {
+        User user = userService.resolveOrCreateUser(
+                telegramUserId,
+                callbackQuery.getFrom().getUserName()
+        );
+        
+        AddPurchaseState state = addPurchaseStateRepository.findByUser(user).orElse(null);
+        if (state == null || state.getStep() != WAITING_FOR_CURRENCY) {
             return;
         }
 
-        if (data != null && data.startsWith("CUR_")) {
+        if (data != null && data.startsWith(CURRENCY_PREFIX + "_")) {
             handleCurrencyChosen(bot, callbackQuery, state, chatId, data);
         }
     }
 
     public void handleOngoingDialogs(FinanceTrackerBot bot,
-                                     Long userId,
+                                     Long telegramUserId,
                                      String chatId,
-                                     String text) {
-        AddPurchaseState state = addPurchaseStates.get(userId);
+                                     String text,
+                                     String username) {
+        User user = userService.resolveOrCreateUser(
+                telegramUserId,
+                username
+        );
+        
+        AddPurchaseState state = addPurchaseStateRepository.findByUser(user).orElse(null);
         if (state == null) {
             return;
         }
@@ -96,7 +119,7 @@ public class AddPurchaseService {
         switch (state.getStep()) {
             case WAITING_FOR_PRICE -> handlePriceStep(bot, chatId, state, text);
             case WAITING_FOR_AMOUNT -> handleAmountStep(bot, chatId, state, text);
-            case WAITING_FOR_NAME -> handleNameStep(bot, chatId, userId, state, text);
+            case WAITING_FOR_NAME -> handleNameStep(bot, chatId, state, text);
             default -> {
             }
         }
@@ -108,7 +131,7 @@ public class AddPurchaseService {
         for (Currency currency : currencies) {
             InlineKeyboardButton button = new InlineKeyboardButton();
             button.setText(currency.getCode());
-            button.setCallbackData("CUR_" + currency.getCode());
+            button.setCallbackData(CURRENCY_PREFIX + "_" + currency.getCode());
             currentRow.add(button);
             if (currentRow.size() == 4) {
                 rows.add(currentRow);
@@ -129,10 +152,11 @@ public class AddPurchaseService {
                                       AddPurchaseState state,
                                       String chatId,
                                       String data) {
-        String code = data.substring("CUR_".length());
+        String code = data.substring((CURRENCY_PREFIX + "_").length());
         currencyRepository.findByCode(code).ifPresent(currency -> {
             state.setCurrency(currency);
-            state.setStep(AddPurchaseState.Step.WAITING_FOR_PRICE);
+            state.setStep(WAITING_FOR_PRICE);
+            addPurchaseStateRepository.save(state);
 
             EditMessageText edit = new EditMessageText();
             edit.setChatId(chatId);
@@ -149,9 +173,10 @@ public class AddPurchaseService {
                                  AddPurchaseState state,
                                  String text) {
         try {
-            BigDecimal price = new BigDecimal(text.replace(",", ".")); // локаль проще не трогать
+            BigDecimal price = new BigDecimal(text.replace(",", "."));
             state.setPrice(price);
-            state.setStep(AddPurchaseState.Step.WAITING_FOR_AMOUNT);
+            state.setStep(WAITING_FOR_AMOUNT);
+            addPurchaseStateRepository.save(state);
             bot.sendText(chatId, Message.askAmount);
         } catch (NumberFormatException e) {
             bot.sendText(chatId, Message.priceParseError);
@@ -165,7 +190,8 @@ public class AddPurchaseService {
         try {
             Long amount = Long.parseLong(text);
             state.setAmount(amount);
-            state.setStep(AddPurchaseState.Step.WAITING_FOR_NAME);
+            state.setStep(WAITING_FOR_NAME);
+            addPurchaseStateRepository.save(state);
             bot.sendText(chatId, Message.askName);
         } catch (NumberFormatException e) {
             bot.sendText(chatId, Message.amountParseError);
@@ -174,7 +200,6 @@ public class AddPurchaseService {
 
     private void handleNameStep(FinanceTrackerBot bot,
                                 String chatId,
-                                Long userId,
                                 AddPurchaseState state,
                                 String text) {
         state.setName(text);
@@ -193,7 +218,7 @@ public class AddPurchaseService {
                 .build();
         purchaseRepository.save(purchase);
 
-        addPurchaseStates.remove(userId);
+        addPurchaseStateRepository.deleteById(state.getId());
         bot.sendText(chatId, Message.purchaseSaved);
     }
 }

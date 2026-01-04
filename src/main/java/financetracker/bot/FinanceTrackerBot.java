@@ -2,6 +2,7 @@ package financetracker.bot;
 
 import financetracker.constant.Message;
 import financetracker.service.AddPurchaseService;
+import financetracker.service.StatisticService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
@@ -16,15 +17,18 @@ public class FinanceTrackerBot extends TelegramLongPollingBot {
 
     private final String botUsername;
     private final AddPurchaseService addPurchaseService;
+    private final StatisticService statisticService;
 
     public FinanceTrackerBot(
             @Value("${telegram.bot.token}") String botToken,
             @Value("${telegram.bot.username}") String botUsername,
-            AddPurchaseService addPurchaseService
+            AddPurchaseService addPurchaseService,
+            StatisticService statisticService
     ) {
         super(botToken);
         this.botUsername = botUsername;
         this.addPurchaseService = addPurchaseService;
+        this.statisticService = statisticService;
     }
 
     @Override
@@ -43,19 +47,29 @@ public class FinanceTrackerBot extends TelegramLongPollingBot {
             return;
         }
 
+        handleTextMessage(update);
+    }
+
+    private void handleTextMessage(Update update) {
         String text = update.getMessage().getText();
         Long userId = update.getMessage().getFrom().getId();
         String chatId = update.getMessage().getChatId().toString();
+        String username = update.getMessage().getFrom().getUserName();
 
         if (handleCommandIfAny(text, chatId, update)) {
             return;
         }
 
-        addPurchaseService.handleOngoingDialogs(this, userId, chatId, text);
+        addPurchaseService.handleOngoingDialogs(this, userId, chatId, text, username);
     }
 
     private void handleCallback(CallbackQuery callbackQuery) {
-        addPurchaseService.handleCallback(this, callbackQuery);
+        String data = callbackQuery.getData();
+        if (data != null && data.startsWith(financetracker.constant.Callback.CURRENCY_PREFIX + "_")) {
+            addPurchaseService.handleCallback(this, callbackQuery);
+        } else if (data != null && (data.startsWith("STAT_") || data.startsWith(financetracker.constant.Callback.VIEW_IN_OTHER_CURRENCY_PREFIX) || data.startsWith(financetracker.constant.Callback.CHANGE_PURCHASE_CURRENCY_PREFIX))) {
+            statisticService.handleCallback(this, callbackQuery);
+        }
     }
 
     private boolean handleCommandIfAny(String text, String chatId, Update update) {
@@ -66,6 +80,16 @@ public class FinanceTrackerBot extends TelegramLongPollingBot {
 
         if ("/add_purchase".equals(text)) {
             addPurchaseService.startAddPurchase(this, update, chatId);
+            return true;
+        }
+
+        if ("/view_statistic".equals(text)) {
+            statisticService.startViewStatistic(this, update, chatId);
+            return true;
+        }
+
+        if ("/view_recent".equals(text)) {
+            statisticService.viewRecentPurchases(this, update, chatId);
             return true;
         }
 
