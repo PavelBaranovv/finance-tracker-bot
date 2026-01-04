@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: finance-tracker-db
+    environment:
+      POSTGRES_DB: finance_tracker
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - finance-tracker-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: finance-tracker-bot
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATASOURCE_URL: jdbc:postgresql://postgres:5432/finance_tracker
+      DATASOURCE_USERNAME: postgres
+      DATASOURCE_PASSWORD: postgres
+
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    networks:
+      - finance-tracker-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  finance-tracker-network:
+    driver: bridge

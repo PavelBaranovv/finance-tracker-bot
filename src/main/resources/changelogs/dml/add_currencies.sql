@@ -1,3 +1,6 @@
+--liquibase formatted-sql
+--changeset pavel:add_currencies
+
 INSERT INTO currencies (code, symbol, name) VALUES
     ('USD', '$', 'Доллар США'),
     ('RUB', '₽', 'Российский рубль'),
