@@ -218,7 +218,7 @@ public class StatisticService {
         rows.add(List.of(button(Message.periodYearButton, StatisticPeriod.YEAR)));
 
         InlineKeyboardButton changeCurrencyButton = new InlineKeyboardButton(Message.viewInOtherCurrency);
-        changeCurrencyButton.setCallbackData(Callback.VIEW_IN_OTHER_CURRENCY_PREFIX + "_" + period.callback());
+        changeCurrencyButton.setCallbackData(Callback.VIEW_IN_OTHER_CURRENCY_PREFIX + period.callback());
         rows.add(List.of(changeCurrencyButton));
         
         return new InlineKeyboardMarkup(rows);
@@ -232,7 +232,7 @@ public class StatisticService {
 
     private void handleViewInOtherCurrency(FinanceTrackerBot bot, CallbackQuery callbackQuery, String data) {
         String chatId = callbackQuery.getMessage().getChatId().toString();
-        String periodCallback = data.substring((Callback.VIEW_IN_OTHER_CURRENCY_PREFIX + "_").length());
+        String periodCallback = data.substring((Callback.VIEW_IN_OTHER_CURRENCY_PREFIX).length());
         
         List<Currency> currencies = currencyRepository.findAll();
         if (currencies.isEmpty()) {

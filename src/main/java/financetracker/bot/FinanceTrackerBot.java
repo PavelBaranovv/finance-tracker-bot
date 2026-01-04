@@ -65,7 +65,7 @@ public class FinanceTrackerBot extends TelegramLongPollingBot {
 
     private void handleCallback(CallbackQuery callbackQuery) {
         String data = callbackQuery.getData();
-        if (data != null && data.startsWith(financetracker.constant.Callback.CURRENCY_PREFIX + "_")) {
+        if (data != null && data.startsWith(financetracker.constant.Callback.CURRENCY_PREFIX)) {
             addPurchaseService.handleCallback(this, callbackQuery);
         } else if (data != null && (data.startsWith("STAT_") || data.startsWith(financetracker.constant.Callback.VIEW_IN_OTHER_CURRENCY_PREFIX) || data.startsWith(financetracker.constant.Callback.CHANGE_PURCHASE_CURRENCY_PREFIX))) {
             statisticService.handleCallback(this, callbackQuery);

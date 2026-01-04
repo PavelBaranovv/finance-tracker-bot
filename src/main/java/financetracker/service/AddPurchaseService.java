@@ -96,7 +96,7 @@ public class AddPurchaseService {
             return;
         }
 
-        if (data != null && data.startsWith(CURRENCY_PREFIX + "_")) {
+        if (data != null && data.startsWith(CURRENCY_PREFIX)) {
             handleCurrencyChosen(bot, callbackQuery, state, chatId, data);
         }
     }
@@ -131,7 +131,7 @@ public class AddPurchaseService {
         for (Currency currency : currencies) {
             InlineKeyboardButton button = new InlineKeyboardButton();
             button.setText(currency.getCode());
-            button.setCallbackData(CURRENCY_PREFIX + "_" + currency.getCode());
+            button.setCallbackData(CURRENCY_PREFIX + currency.getCode());
             currentRow.add(button);
             if (currentRow.size() == 4) {
                 rows.add(currentRow);
@@ -152,7 +152,7 @@ public class AddPurchaseService {
                                       AddPurchaseState state,
                                       String chatId,
                                       String data) {
-        String code = data.substring((CURRENCY_PREFIX + "_").length());
+        String code = data.substring((CURRENCY_PREFIX).length());
         currencyRepository.findByCode(code).ifPresent(currency -> {
             state.setCurrency(currency);
             state.setStep(WAITING_FOR_PRICE);
