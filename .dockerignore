@@ -33,6 +33,3 @@ Thumbs.db
 *.swp
 *~
 
-# Test files
-src/test/
-
