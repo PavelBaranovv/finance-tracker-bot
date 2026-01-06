@@ -1,6 +1,9 @@
 databaseChangeLog:
-  - includeAll:
-      path: changelogs/ddl
+  - include:
+      file: changelogs/ddl/init.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changelogs/ddl/indexes.sql
       relativeToChangelogFile: true
   - includeAll:
       path: changelogs/dml
